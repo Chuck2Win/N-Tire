@@ -21,13 +21,19 @@ class dataset:
         categorical_values = self.data.loc[:,self.categorical]
         categorical_values_ = self.O.fit_transform(categorical_values).toarray().astype(np.int64)
         # [, ] or < - change
-        memo_columns = {i:'feature%d'%(_) for _,i in enumerate(self.O.get_feature_names())}
-        columns = memo_columns.values()
+        one_hot_memo_columns = {i:'feature%d'%(_) for _,i in enumerate(self.O.get_feature_names())}
+        
+        columns = one_hot_memo_columns.values()
         categorical_values_ = df(categorical_values_,columns=columns)
         numerical_values = self.data.loc[:,self.data.columns.difference(self.categorical)]
         
-        pd.concat([categorical_values_,numerical_values],axis=1).to_csv(args.output_data,index=False)
+        new=pd.concat([categorical_values_,numerical_values],axis=1)
+        memo_columns = list(new.columns) 
+        new.to_csv(args.output_data,index=False)
         f = open('onehot_columns_memo','wb')
+        pickle.dump(one_hot_memo_columns,f)
+        f.close()
+        f = open('columns_memo','wb')
         pickle.dump(memo_columns,f)
         f.close()
         #train_cv.columns.difference(['Data60','Data61','Data62','Data63','Data57'])]
