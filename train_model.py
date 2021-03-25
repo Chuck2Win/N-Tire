@@ -16,7 +16,7 @@ import pickle
 parser = argparse.ArgumentParser(description = 'model train')
 parser.add_argument('--models', type = list , default = ['rf','xg','lgbm'] , help = '모델')
 parser.add_argument('--test_size', type = float , default = 0.3 , help = 'test_size')
-parser.add_argument('--test_type', type = str , default = 'sequential' , help = 'sequential이면 마지막 test size만큼을 남김')
+parser.add_argument('--test_type', type = str , default = 'else' , help = 'sequential이면 마지막 test size만큼을 남김')
 #parser.add_argument('--k', type = int , default = 10 , help = 'cross validation')
 parser.add_argument('--data', type = str , default = 'G:/넥센타이어/Foot Print/preprocessed_data.csv' , help = '데이터 저장 위치')
 parser.add_argument('--report', type = str , default = 'report' , help = '데이터 저장 위치')
@@ -38,10 +38,12 @@ def MAPE(y_true,y_pred):
 class train_models:
     def __init__(self):
         self.scores = {}
+        self.save_models ={}
         self.models = args.models
         for target in args.ys:
             self.scores[target]={}
-        self.save_models = {name:None for name in self.models}
+            self.save_models[target]={}
+        
     def train(self):
         for target in args.ys:
             for name in self.models:
@@ -66,7 +68,7 @@ class train_models:
                 self.scores[target][name]['test']['mse']=mean_squared_error(test_y,test_pred)
                 self.scores[target][name]['test']['mape']=MAPE(test_y,test_pred)
                 self.scores[target][name]['test']['r2']=r2_score(test_y,test_pred)
-                self.save_models[name]=model
+                self.save_models[target][name]=model
     def save_scores(self):
         try:
             os.mkdir(args.test_type)
