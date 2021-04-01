@@ -254,6 +254,8 @@ if __name__=='__main__':
     drop_pipeline = DropRow(args.target_feature_names)
     final_pipeline = Pipeline(steps=[('drop_pipeline',drop_pipeline),('full_pipeline',MergePreprocessedData(args))])
     final_data = final_pipeline.fit_transform(raw_data)
+    # 시간 순으로 sort
+    final_data=final_data.sort_values(by=args.time_feature_name[0],axis=0) 
     final_data.to_csv(args.preprocessed_data,index=True)
     
     
