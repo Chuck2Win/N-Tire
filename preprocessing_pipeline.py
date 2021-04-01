@@ -254,6 +254,6 @@ if __name__=='__main__':
     drop_pipeline = DropRow(args.target_feature_names)
     final_pipeline = Pipeline(steps=[('drop_pipeline',drop_pipeline),('full_pipeline',MergePreprocessedData(args))])
     final_data = final_pipeline.fit_transform(raw_data)
-    final_data.to_csv(args.preprocessed_data,header=0,index=True)
+    final_data.to_csv(args.preprocessed_data,index=True)
     
     
