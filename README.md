@@ -68,3 +68,4 @@
 
 https://velog.io/@skyepodium/K-Fold-%EA%B5%90%EC%B0%A8%EA%B2%80%EC%A6%9D - kfold
 
+https://towardsdatascience.com/custom-transformers-and-ml-data-pipelines-with-python-20ea2a7adb65 - pipeline
