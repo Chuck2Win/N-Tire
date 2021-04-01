@@ -5,21 +5,22 @@ Created on Thu Apr  1 06:49:27 2021
 @author: IDSL
 """
 # pipeline
-import os
+
 import pandas as pd
-import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 # get params, set params // fit, transform, fit trasform
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
-from sklearn.pipeline import FeatureUnion,Pipeline
+from sklearn.pipeline import Pipeline#FeatureUnion,
 
 #  Feature Union은 np,array만 취급하는 듯.
 import argparse
+import numpy as np
 
 parser = argparse.ArgumentParser(description='pipeline')
 #parser.add_argument('--data', type = str , default = ./footprint_v2.csv' , help = '데이터 저장 위치')
 parser.add_argument('--preprocessed_data',type=str,default='./data/preprocessed_data.csv')
+parser.add_argument('--outlier_percentile',type=float,default=0.01)
 parser.add_argument('--dictionary',type=str,default='./data/dictionary')
 parser.add_argument('--categorical_feature_names', type = list , default = 
 ['Data2',
@@ -81,10 +82,14 @@ parser.add_argument('--numerical_feature_names',type = list, default = [
  'Data56',
   ])
 
+# 이상치 제거 - numerical variable을 위해
+
+
+# target variable을 위해서
 class DropRow(BaseEstimator, TransformerMixin):
     # y값이 결측이 있으면 버린다.
     # -값이라는 결측값도 있음.
-    def __init__( self, feature_names ):
+    def __init__( self,feature_names):
         self._feature_names = feature_names 
     def fit(self,X,y=None):
         return self
@@ -93,7 +98,30 @@ class DropRow(BaseEstimator, TransformerMixin):
         X=X.loc[X[self._feature_names].isna().sum(axis=1)==0,:]
         # -값 제거
         X=X.loc[((X[self._feature_names]=='-').sum(axis=1))==0,:]
+       
         return X
+
+# numerical 변수 + target variable을 위한 것임
+# impute 된 후에 적용하면 됨
+# normal 하게 2.5%~97.5%만을 get
+class OulierTransformer(BaseEstimator, TransformerMixin):
+    def __init__( self, outlier_percentile):
+        self.outlier_percentile = outlier_percentile
+        
+    def fit(self,X,y=None):
+        return self
+    def transform(self,X,y=None):
+        # 결측치 제거
+        idx = None
+        for i in X.columns:
+            a,b = np.percentile(X[i].values,[self.outlier_percentile, 100.0-self.outlier_percentile])
+            if idx is None:
+                idx = (a<=X[i]) & (X[i]<=b)
+            else:
+                idx = idx &( (a<=X[i]) & (X[i]<=b))
+            
+        return X.loc[idx,:]
+
         
 class FeatureSelector( BaseEstimator, TransformerMixin ):
     #Class Constructor 
@@ -166,11 +194,12 @@ class NumericalTransformer(BaseEstimator, TransformerMixin):
     def transform(self,X,y=None):
         output = self.SimpleImputer.transform(X)
         df = pd.DataFrame(output,columns=X.columns,index=X.index)
+         # inf값 제거
+        df=df.loc[((df=='inf').sum(axis=1))==0,:]
+        df=df.loc[((df==float('inf')).sum(axis=1))==0,:]
+        
         return df
-    
-    
-
-
+ 
 class Cleanse(BaseEstimator, TransformerMixin):
     def __init__(self):
         pass
@@ -191,7 +220,8 @@ class Cleanse(BaseEstimator, TransformerMixin):
     def transform(self,X,y=None):
         for c in X.columns:
             X.loc[:,c] = X.loc[:,c].apply(lambda i : self.cleanse(i))
-        
+        X=X.loc[((X=='inf').sum(axis=1))==0,:]
+        X=X.loc[((X==float('inf')).sum(axis=1))==0,:]
         return X
 
 class MergePreprocessedData(BaseEstimator, TransformerMixin):
@@ -203,11 +233,11 @@ class MergePreprocessedData(BaseEstimator, TransformerMixin):
                                              ('imputer', CategoricalTransformer1()),
                                              ('transform', CategoricalTransformer2())])
         self.numerical_pipeline = Pipeline(steps = [('select', FeatureSelector(args.numerical_feature_names)),
-                                            ('transform',NumericalTransformer())])
+                                            ('transform',NumericalTransformer()),('outlier',OulierTransformer(args.outlier_percentile))])
         self.time_pipeline = Pipeline(steps=[('select',FeatureSelector(args.time_feature_name)),
                                     ('transform',TimeTransformer())])
         self.target_pipeline = Pipeline(steps=[('select',FeatureSelector(args.target_feature_names)),
-                                      ('cleanse',Cleanse())])
+                                      ('cleanse',Cleanse()),('outlier',OulierTransformer(args.outlier_percentile))])
         
     def fit(self,X):
         
@@ -230,6 +260,14 @@ class MergePreprocessedData(BaseEstimator, TransformerMixin):
         tm=self.time_pipeline.transform(X)
         t=self.target_pipeline.transform(X)
         
+        idx1 = n.index
+        idx2 = t.index
+        idx = idx1&idx2
+        c = c.loc[idx,:]
+        n = n.loc[idx,:]
+        tm = tm.loc[idx,:]
+        t = t.loc[idx,:]
+        
         standard = c
         for i in [n,tm,t]:
             standard = standard.join(i)
@@ -237,25 +275,20 @@ class MergePreprocessedData(BaseEstimator, TransformerMixin):
     
     
     
-raw_data = pd.read_csv('./raw_data_04_01.txt',sep='\t',encoding='cp949',header=0)
+
 if __name__=='__main__':
+    raw_data = pd.read_csv('./raw_data_04_01.txt',sep='\t',encoding='cp949',header=0)
     args = parser.parse_args()
+    args
     
-    categorical_pipeline = Pipeline(steps = [('select', FeatureSelector(args.categorical_feature_names)),
-                                             ('imputer', CategoricalTransformer1()),
-                                             ('transform', CategoricalTransformer2())])
-    numerical_pipeline = Pipeline(steps = [('select', FeatureSelector(args.numerical_feature_names)),
-                                            ('transform',NumericalTransformer())])
-    time_pipeline = Pipeline(steps=[('select',FeatureSelector(args.time_feature_name)),
-                                    ('transform',TimeTransformer())])
     target_pipeline = Pipeline(steps=[('select',FeatureSelector(args.target_feature_names)),
-                                      ('cleanse',Cleanse())])
+                                      ('cleanse',Cleanse()),('outlier',OulierTransformer(args.outlier_percentile))])
+    drop_pipeline = DropRow(args.target_feature_names)    
     
-    drop_pipeline = DropRow(args.target_feature_names)
     final_pipeline = Pipeline(steps=[('drop_pipeline',drop_pipeline),('full_pipeline',MergePreprocessedData(args))])
     final_data = final_pipeline.fit_transform(raw_data)
     # 시간 순으로 sort
     final_data=final_data.sort_values(by=args.time_feature_name[0],axis=0) 
     final_data.to_csv(args.preprocessed_data,index=True)
     
-    
+   
